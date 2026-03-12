@@ -76,17 +76,18 @@ router.post("/login", async (req, res, next) => {
             user = await ensureDefaultUser();
         }
         if (!user) return res.status(401).json({ message: "Invalid email or password" });
-        if (user.status === "suspended") return res.status(403).json({ message: "Account suspended. Contact admin." });
 
         // Keep configured default credentials usable for the default account.
         if (normalizedEmail === DEFAULT_USER_EMAIL && password === DEFAULT_USER_PASSWORD) {
             const hasConfiguredPassword = await bcrypt.compare(DEFAULT_USER_PASSWORD, user.passwordHash);
-            if (!hasConfiguredPassword) {
+            if (!hasConfiguredPassword || user.status !== "active") {
                 user.passwordHash = await bcrypt.hash(DEFAULT_USER_PASSWORD, 10);
                 user.status = "active";
                 await user.save();
             }
         }
+
+        if (user.status === "suspended") return res.status(403).json({ message: "Account suspended. Contact admin." });
 
         const match = await bcrypt.compare(password, user.passwordHash);
         if (!match) return res.status(401).json({ message: "Invalid email or password" });
