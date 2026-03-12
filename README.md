@@ -6,7 +6,7 @@ Full-stack management platform for:
 - Mills, quantities, and design numbers CRUD
 - Activity logs and analytics
 - Data export (JSON / CSV)
-- Assistant-enabled admin actions
+- AI chatbot disabled in this build
 - User login and profile/password management
 
 ## Tech Stack
@@ -63,7 +63,6 @@ Important:
 - `CLIENT_ORIGIN` (comma-separated allowed origins)
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD` (bootstrap admin credentials)
 - `DEFAULT_USER_EMAIL`, `DEFAULT_USER_PASSWORD` (bootstrap user credentials)
-- `GEMINI_API_KEY` (required for assistant AI features)
 
 Default credential fallbacks (if env vars are not set):
 - Admin: `SuperAdmin` / `Admin@1234`
@@ -75,7 +74,6 @@ Optional:
 - `VITE_API_BASE_URL`
   - Leave empty for same-origin API (recommended for Vercel)
   - Local dev uses Vite proxy to backend
-- `VITE_ASSISTANT_NATIVE_VOICE`
 
 ## Scripts
 

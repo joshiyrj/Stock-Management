@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { api } from "../../../lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { LayoutDashboard, Boxes, Layers, User, LogOut, BarChart3, Download, Factory, BoxSelect, Paintbrush, Moon, Sun } from "lucide-react";
-import DigitalAssistant from "../assistant/DigitalAssistant";
+// Chatbot widget disabled.
+// import DigitalAssistant from "../assistant/DigitalAssistant";
 
 export default function AdminShell({ admin, children }) {
   const nav = useNavigate();
@@ -87,8 +88,8 @@ export default function AdminShell({ admin, children }) {
           <div className="p-6">{children}</div>
         </main>
       </div>
-
-      <DigitalAssistant />
+      {/* Chatbot widget disabled. */}
+      {/* <DigitalAssistant /> */}
     </div>
   );
 }

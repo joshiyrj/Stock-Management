@@ -40,7 +40,6 @@ export default function AdminActivity() {
                         <option value="delete">Delete</option>
                         <option value="login">Login</option>
                         <option value="export">Export</option>
-                        <option value="assistant">Assistant</option>
                     </select>
                 </div>
             </div>
@@ -118,7 +117,7 @@ function actionBadge(action) {
         login: "action-badge-login",
         logout: "badge-inactive",
         export: "action-badge-export",
-        assistant: "action-badge-assistant",
+        assistant: "badge-inactive",
         bulk_update: "action-badge-bulk_update",
         bulk_delete: "action-badge-bulk_delete"
     };

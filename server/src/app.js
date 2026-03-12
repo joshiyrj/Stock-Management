@@ -9,7 +9,8 @@ const profileRoutes = require("./routes/profile.routes");
 const entityRoutes = require("./routes/entities.routes");
 const analyticsRoutes = require("./routes/analytics.routes");
 const exportRoutes = require("./routes/export.routes");
-const assistantRoutes = require("./routes/assistant.routes");
+// Chatbot integration disabled.
+// const assistantRoutes = require("./routes/assistant.routes");
 const millRoutes = require("./routes/mills.routes");
 const quantityRoutes = require("./routes/quantities.routes");
 const designNoRoutes = require("./routes/designNos.routes");
@@ -63,7 +64,8 @@ function createApp() {
   app.use("/api/entities", entityRoutes);
   app.use("/api/analytics", analyticsRoutes);
   app.use("/api/export", exportRoutes);
-  app.use("/api/assistant", assistantRoutes);
+  // Chatbot integration disabled.
+  // app.use("/api/assistant", assistantRoutes);
 
   // Management modules
   app.use("/api/mills", millRoutes);

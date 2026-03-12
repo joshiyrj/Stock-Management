@@ -115,7 +115,7 @@ export default function AdminDashboardHome() {
 
       <div className="card p-5">
         <p className="text-sm text-slate-700">
-          Digital assistant is available from the floating control at the bottom right.
+          Use the admin panels to manage data, monitor activity, and export records.
         </p>
       </div>
     </div>
@@ -130,7 +130,7 @@ function actionBadge(action) {
     login: "action-badge-login",
     logout: "badge-inactive",
     export: "action-badge-export",
-    assistant: "action-badge-assistant"
+    assistant: "badge-inactive"
   };
   return map[action] || "badge-inactive";
 }
