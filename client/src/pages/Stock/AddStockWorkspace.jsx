@@ -78,21 +78,6 @@ export default function AddStockWorkspace({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-2 section-reveal sm:grid-cols-3" style={{ animationDelay: '60ms' }}>
-        <div className="compact-kpi">
-          <p className="stock-kicker">Received</p>
-          <AnimatedMeter value={totalMeter} className="mt-1 text-xl text-slate-900 sm:text-2xl" />
-        </div>
-        <div className="compact-kpi">
-          <p className="stock-kicker">{flowMeterLabel}</p>
-          <AnimatedMeter value={flowMeterValue} className="mt-1 text-xl text-slate-900 sm:text-2xl" />
-        </div>
-        <div className="compact-kpi">
-          <p className="stock-kicker">Stock Remaining</p>
-          <AnimatedMeter value={stockRemaining} className="mt-1 text-xl text-slate-900 sm:text-2xl" />
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="order-2 min-w-0 space-y-3 xl:order-1">
           <section className="stock-workspace-card section-reveal" style={{ animationDelay: '110ms' }}>
