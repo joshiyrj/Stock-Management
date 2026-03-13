@@ -61,6 +61,7 @@ Required:
 Important:
 - `COOKIE_NAME` (default: `s_management_token`)
 - `CLIENT_ORIGIN` (comma-separated allowed origins)
+- `SUPERADMIN_USERNAME` to control which admin can clear the activity log
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD` for optional manual account bootstrap
 - `DEFAULT_USER_EMAIL`, `DEFAULT_USER_PASSWORD` for optional manual user bootstrap
 

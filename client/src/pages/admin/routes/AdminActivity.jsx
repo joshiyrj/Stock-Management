@@ -1,11 +1,15 @@
-﻿import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../lib/api";
 import { useState } from "react";
-import { Clock, Filter } from "lucide-react";
+import { Clock, Filter, Trash2 } from "lucide-react";
+import { useAdminAuth } from "../useAdminAuth";
 
 export default function AdminActivity() {
+    const qc = useQueryClient();
     const [page, setPage] = useState(1);
     const [actionFilter, setActionFilter] = useState("");
+    const { data: admin } = useAdminAuth();
+    const isSuperAdmin = Boolean(admin?.isSuperAdmin);
 
     const { data, isLoading } = useQuery({
         queryKey: ["activity-log", page, actionFilter],
@@ -15,7 +19,28 @@ export default function AdminActivity() {
             return (await api.get("/api/analytics/activity", { params })).data;
         }
     });
+
+    const clearActivityLog = useMutation({
+        mutationFn: async () => (await api.delete("/api/analytics/activity")).data,
+        onSuccess: () => {
+            setPage(1);
+            qc.invalidateQueries({ queryKey: ["activity-log"] });
+            qc.invalidateQueries({ queryKey: ["analytics-dashboard"] });
+        }
+    });
+
     const rows = data?.rows || [];
+
+    async function handleClearActivity() {
+        const confirmed = window.confirm("Clear the full activity log? This cannot be undone.");
+        if (!confirmed) return;
+
+        try {
+            await clearActivityLog.mutateAsync();
+        } catch {
+            // Keep the failure message in the inline state below.
+        }
+    }
 
     return (
         <div className="space-y-4">
@@ -28,20 +53,43 @@ export default function AdminActivity() {
                     <p className="page-subtitle">Track all admin actions and system events.</p>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Filter size={16} className="text-slate-400" />
-                    <select
-                        className="select w-full sm:w-auto"
-                        value={actionFilter}
-                        onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
-                    >
-                        <option value="">All Actions</option>
-                        <option value="create">Create</option>
-                        <option value="update">Update</option>
-                        <option value="delete">Delete</option>
-                        <option value="login">Login</option>
-                        <option value="export">Export</option>
-                    </select>
+                <div className="flex flex-col gap-2 w-full sm:w-auto">
+                    {isSuperAdmin && (
+                        <button
+                            type="button"
+                            className="btn btn-danger w-full sm:w-auto"
+                            onClick={handleClearActivity}
+                            disabled={clearActivityLog.isPending}
+                        >
+                            <Trash2 size={16} />
+                            {clearActivityLog.isPending ? "Clearing..." : "Clear Activity Log"}
+                        </button>
+                    )}
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <Filter size={16} className="text-slate-400" />
+                        <select
+                            className="select w-full sm:w-auto"
+                            value={actionFilter}
+                            onChange={(e) => {
+                                setActionFilter(e.target.value);
+                                setPage(1);
+                            }}
+                        >
+                            <option value="">All Actions</option>
+                            <option value="create">Create</option>
+                            <option value="update">Update</option>
+                            <option value="delete">Delete</option>
+                            <option value="login">Login</option>
+                            <option value="export">Export</option>
+                        </select>
+                    </div>
+
+                    {clearActivityLog.isError && (
+                        <div className="text-xs text-rose-600 break-words sm:max-w-xs">
+                            {clearActivityLog.error?.response?.data?.message || "Failed to clear activity log."}
+                        </div>
+                    )}
                 </div>
             </div>
 

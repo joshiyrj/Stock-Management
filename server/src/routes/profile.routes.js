@@ -6,13 +6,26 @@ const { requireAdmin } = require("../middlewares/requireAdmin");
 
 router.use(requireAdmin);
 
+function normalizeUsername(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function getSuperAdminUsername() {
+  return normalizeUsername(
+    process.env.SUPERADMIN_USERNAME ||
+    process.env.ADMIN_USERNAME ||
+    "SuperAdmin"
+  );
+}
+
 router.get("/", async (req, res) => {
   const admin = await AdminUser.findById(req.admin.id).lean();
   res.json({
     username: admin.username,
     name: admin.name,
     email: admin.email,
-    mobile: admin.mobile
+    mobile: admin.mobile,
+    isSuperAdmin: normalizeUsername(admin.username) === getSuperAdminUsername()
   });
 });
 

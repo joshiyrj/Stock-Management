@@ -7,7 +7,18 @@ const os = require("os");
 
 router.use(requireAdmin);
 
-// GET /api/analytics/dashboard — real-time dashboard stats
+function normalizeUsername(value) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function getSuperAdminUsername() {
+    return normalizeUsername(
+        process.env.SUPERADMIN_USERNAME ||
+        process.env.ADMIN_USERNAME ||
+        "SuperAdmin"
+    );
+}
+
 router.get("/dashboard", async (req, res) => {
     try {
         const [
@@ -22,10 +33,7 @@ router.get("/dashboard", async (req, res) => {
             Entity.countDocuments({ type: "collection" }),
             Entity.countDocuments({ type: "item", status: "active" }),
             Entity.countDocuments({ type: "collection", status: "active" }),
-            ActivityLog.find()
-                .sort({ createdAt: -1 })
-                .limit(15)
-                .lean(),
+            ActivityLog.find().sort({ createdAt: -1 }).limit(15).lean(),
             Entity.distinct("tags")
         ]);
 
@@ -44,11 +52,10 @@ router.get("/dashboard", async (req, res) => {
     }
 });
 
-// GET /api/analytics/activity — paginated activity log
 router.get("/activity", async (req, res) => {
     try {
-        const page = Math.max(1, parseInt(req.query.page) || 1);
-        const limit = Math.min(50, parseInt(req.query.limit) || 20);
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = Math.min(50, parseInt(req.query.limit, 10) || 20);
         const skip = (page - 1) * limit;
 
         const filter = {};
@@ -66,7 +73,19 @@ router.get("/activity", async (req, res) => {
     }
 });
 
-// GET /api/analytics/system — system info
+router.delete("/activity", async (req, res) => {
+    try {
+        if (normalizeUsername(req.admin?.username) !== getSuperAdminUsername()) {
+            return res.status(403).json({ message: "Only the superadmin can clear the activity log." });
+        }
+
+        const result = await ActivityLog.deleteMany({});
+        res.json({ ok: true, deleted: result.deletedCount || 0 });
+    } catch (e) {
+        res.status(500).json({ message: e.message });
+    }
+});
+
 router.get("/system", async (req, res) => {
     try {
         const admin = await AdminUser.findById(req.admin.id).lean();
