@@ -211,6 +211,7 @@ const flattenRowsForExport = (rows) =>
     'Received (m)': Number(row.totalMeterReceived || 0).toFixed(2),
     'Than Meter (m)': Number(row.meterOfTotalThan || 0).toFixed(2),
     'Bale Meter (m)': Number(row.meterOfTotalBales || 0).toFixed(2),
+    'Bale Details': buildRowBaleDetails(row),
     'Second (m)': Number(row.second || 0).toFixed(2),
     'Unchecked (m)': Number(row.unchecked || 0).toFixed(2),
     'Final Report (m)': Number(row.finalReport || 0).toFixed(2),
@@ -235,6 +236,39 @@ const getSummaryMetricItems = (summary) => [
   ['Total Than Meter', `${formatMeter(summary.totalThanMeter)} m`],
   ['Total Bale Meter', `${formatMeter(summary.totalBaleMeter)} m`],
 ];
+
+const buildRowBaleDetails = (row, { compact = false, maxLength = null, multiline = false } = {}) => {
+  const regularSegments =
+    row.type === 'regular'
+      ? (row.regularBales || []).map((bale) => {
+          const base = compact
+            ? `${bale.baleNo} ${formatMeter(bale.meter)}`
+            : `${bale.sNo}. ${bale.baleNo} (${formatMeter(bale.meter)} m)`;
+          return bale.billNo && String(bale.billNo).trim() !== ''
+            ? `${base}${compact ? ` [${bale.billNo}]` : ` Bill ${bale.billNo}`}`
+            : base;
+        })
+      : [];
+
+  const mixSegments =
+    row.type === 'mix'
+      ? (row.thanDetails || []).flatMap((than) =>
+          (than.baleDetails || []).map((bale) =>
+            compact
+              ? `T${than.sNo}/B${bale.sNo} ${bale.baleNo} ${formatMeter(bale.meter)}`
+              : `Than ${than.sNo} / Bale ${bale.sNo} - ${bale.baleNo} (${formatMeter(bale.meter)} m${bale.billNo ? `, Bill ${bale.billNo}` : ''})`
+          )
+        )
+      : [];
+
+  const separator = multiline ? '\n' : compact ? ' | ' : '; ';
+  const text = [...regularSegments, ...mixSegments].join(separator);
+  if (!maxLength || text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(0, maxLength - 12)).trimEnd()} ...more`;
+};
 
 const buildRegularBaleDetailRows = (row) => [
   ...((row.regularBales || []).filter((bale) => !bale.billNo || bale.billNo.trim() === '')).map((bale) => ({
@@ -265,40 +299,6 @@ const buildMixBaleDetailRows = (row) =>
       billNo: bale.billNo || '',
     }))
   );
-
-const buildExcelTable = ({ headers, rows, headerTone = '#dbeafe', border = '#cbd5e1', zebra = '#f8fafc' }) => `
-  <table style="border-collapse:collapse;width:100%;margin:0 0 18px 0;">
-    <thead>
-      <tr>
-        ${headers
-          .map(
-            (header) =>
-              `<th style="background:${headerTone};color:#0f172a;border:1px solid ${border};padding:8px 10px;text-align:left;font-weight:700;">${escapeHtml(
-                header
-              )}</th>`
-          )
-          .join('')}
-      </tr>
-    </thead>
-    <tbody>
-      ${
-        rows.length > 0
-          ? rows
-              .map(
-                (row, index) =>
-                  `<tr style="background:${index % 2 === 0 ? '#ffffff' : zebra};">${row
-                    .map(
-                      (cell) =>
-                        `<td style="border:1px solid ${border};padding:8px 10px;vertical-align:top;white-space:pre-wrap;">${escapeHtml(cell)}</td>`
-                    )
-                    .join('')}</tr>`
-              )
-              .join('')
-          : `<tr><td colspan="${headers.length}" style="border:1px solid ${border};padding:10px;color:#64748b;">No records available</td></tr>`
-      }
-    </tbody>
-  </table>
-`;
 
 const buildCsv = (rows, summary) => {
   const exportRows = flattenRowsForExport(rows);
@@ -351,96 +351,42 @@ const buildExcel = (rows, summary, query) => {
     'Final Report (m)': '',
     'Sold (m)': '',
     'In Stock (m)': '',
+    'Bale Details': '',
   });
+  const filterRows = getFilterLines(query)
+    .map((line) => `<tr><td colspan="2" style="padding:6px 10px;color:#475569;border:1px solid #e2e8f0;">${escapeHtml(line)}</td></tr>`)
+    .join('');
 
-  const overviewTable = buildExcelTable({
-    headers,
-    rows: exportRows.map((row) => headers.map((header) => String(row[header] ?? ''))),
-    headerTone: '#dbeafe',
-    border: '#bfdbfe',
-  });
+  const summaryRows = [
+    ['Total Records', String(summary.count)],
+    ['Total Received (m)', summary.totalReceived.toFixed(2)],
+    ['Total Sold (m)', summary.totalSold.toFixed(2)],
+    ['Total In Stock (m)', summary.totalInStock.toFixed(2)],
+    ['Total Than Meter (m)', summary.totalThanMeter.toFixed(2)],
+    ['Total Bale Meter (m)', summary.totalBaleMeter.toFixed(2)],
+  ]
+    .map(
+      ([label, value], index) =>
+        `<tr>
+          <td style="padding:8px 12px;border:1px solid #bfdbfe;background:${index % 2 === 0 ? '#eff6ff' : '#f8fbff'};font-weight:600;color:#1e3a8a;">${escapeHtml(label)}</td>
+          <td style="padding:8px 12px;border:1px solid #bfdbfe;background:${index % 2 === 0 ? '#eff6ff' : '#f8fbff'};font-weight:700;text-align:right;color:#0f172a;">${escapeHtml(value)}</td>
+        </tr>`
+    )
+    .join('');
 
-  const summaryTable = buildExcelTable({
-    headers: ['Metric', 'Value'],
-    rows: getSummaryMetricItems(summary),
-    headerTone: '#dcfce7',
-    border: '#bbf7d0',
-    zebra: '#f0fdf4',
-  });
-
-  const filterTable = buildExcelTable({
-    headers: ['Applied Filters'],
-    rows: getFilterLines(query).map((line) => [line]),
-    headerTone: '#f1f5f9',
-    border: '#cbd5e1',
-  });
-
-  const detailSections = rows
-    .map((row) => {
-      const metaTable = buildExcelTable({
-        headers: ['Field', 'Value'],
-        rows: [
-          ['Date', formatDate(row.date)],
-          ['Mill', row.millName],
-          ['Quality', row.qualityName],
-          ['Design', row.designName],
-          ['Lot No', String(row.lotNo ?? '')],
-          ['Type', formatTypeLabel(row.type)],
-          ['Received (m)', formatMeter(row.totalMeterReceived)],
-          ['Sold (m)', formatMeter(row.meterSold)],
-          ['In Stock (m)', formatMeter((row.stockRemaining || 0) + (row.unchecked || 0))],
-          ['Second (m)', formatMeter(row.second)],
-          ['Unchecked (m)', formatMeter(row.unchecked)],
-          ['Final Report (m)', formatMeter(row.finalReport)],
-        ],
-        headerTone: row.type === 'regular' ? '#dbeafe' : '#ede9fe',
-        border: row.type === 'regular' ? '#bfdbfe' : '#ddd6fe',
-        zebra: row.type === 'regular' ? '#f8fbff' : '#faf5ff',
-      });
-
-      const detailsTable =
-        row.type === 'regular'
-          ? buildExcelTable({
-              headers: ['#', 'Bale No', 'Meter (m)', 'Status', 'Bill No'],
-              rows: buildRegularBaleDetailRows(row).map((item) => [item.serial, item.baleNo, item.meter, item.status, item.billNo]),
-              headerTone: '#eff6ff',
-              border: '#bfdbfe',
-            })
-          : buildExcelTable({
-              headers: ['Than #', 'Than Meter (m)', 'Than Status', 'Bale #', 'Bale No', 'Bale Meter (m)', 'Bill No'],
-              rows: buildMixBaleDetailRows(row).map((item) => [
-                item.thanSerial,
-                item.thanMeter,
-                item.thanStatus,
-                item.baleSerial,
-                item.baleNo,
-                item.baleMeter,
-                item.billNo,
-              ]),
-              headerTone: '#f5f3ff',
-              border: '#ddd6fe',
-              zebra: '#faf5ff',
-            });
-
-      return `
-        <section style="margin-top:28px;page-break-inside:avoid;">
-          <div style="padding:12px 16px;border:1px solid ${row.type === 'regular' ? '#bfdbfe' : '#ddd6fe'};background:${
-            row.type === 'regular' ? 'linear-gradient(90deg, #eff6ff 0%, #ffffff 100%)' : 'linear-gradient(90deg, #f5f3ff 0%, #ffffff 100%)'
-          };">
-            <div style="font-size:18px;font-weight:700;color:#0f172a;">${escapeHtml(row.millName)} - Lot ${escapeHtml(String(row.lotNo ?? ''))}</div>
-            <div style="margin-top:4px;color:#475569;">${escapeHtml(row.qualityName)} - ${escapeHtml(row.designName)} - ${escapeHtml(
-        formatTypeLabel(row.type)
-      )}</div>
-          </div>
-          <div style="margin-top:14px;font-size:15px;font-weight:700;color:#1e293b;">Stock Snapshot</div>
-          ${metaTable}
-          <div style="margin-top:6px;font-size:15px;font-weight:700;color:#1e293b;">${
-            row.type === 'regular' ? 'Bale Number Details' : 'Than and Bale Number Details'
-          }</div>
-          ${detailsTable}
-        </section>
-      `;
-    })
+  const bodyRows = exportRows
+    .map(
+      (row) =>
+        `<tr>${headers
+          .map((header) => {
+            const isBaleDetails = header === 'Bale Details';
+            const isNumeric = header !== 'Date' && header !== 'Mill' && header !== 'Quality' && header !== 'Design' && header !== 'Type' && header !== 'Bale Details';
+            return `<td style="padding:8px 10px;border:1px solid #dbeafe;vertical-align:top;${isBaleDetails ? 'min-width:340px;max-width:420px;white-space:pre-wrap;word-break:break-word;background:#f8fbff;font-size:12px;line-height:1.45;' : ''}${isNumeric ? 'text-align:right;font-variant-numeric:tabular-nums;' : ''}">${escapeHtml(
+              row[header]
+            )}</td>`;
+          })
+          .join('')}</tr>`
+    )
     .join('');
 
   return `<!DOCTYPE html>
@@ -448,26 +394,33 @@ const buildExcel = (rows, summary, query) => {
   <head>
     <meta charset="utf-8" />
     <style>
-      body { font-family: Segoe UI, Arial, sans-serif; padding: 20px; color: #0f172a; }
-      h1 { margin: 0; font-size: 26px; }
-      h2 { margin: 6px 0 0; font-size: 14px; font-weight: 500; color: #475569; }
-      .hero { padding: 18px 20px; border: 1px solid #cbd5e1; background: linear-gradient(135deg, #eff6ff 0%, #ffffff 60%, #f8fafc 100%); }
-      .section-title { margin: 22px 0 10px; font-size: 17px; font-weight: 700; color: #0f172a; }
+      body { font-family: Segoe UI, Arial, sans-serif; padding: 18px; color: #0f172a; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      h2 { margin: 0 0 14px; font-size: 14px; color: #475569; }
+      table { border-collapse: collapse; width: 100%; table-layout: auto; }
+      th { background: #e0f2fe; color: #1e3a8a; border: 1px solid #bfdbfe; padding: 8px 10px; text-align: left; white-space: nowrap; }
+      .section { margin-bottom: 16px; }
+      .summary-table { width: 420px; }
+      .report-table td, .report-table th { font-size: 13px; }
     </style>
   </head>
   <body>
-    <div class="hero">
-      <h1>Manihar Enterprises Stock Report</h1>
-      <h2>Generated ${escapeHtml(formatDateTime())}</h2>
+    <h1>Stock Report</h1>
+    <h2>Generated ${escapeHtml(formatDateTime())}</h2>
+    <div class="section">
+      <table class="summary-table">
+        ${summaryRows}
+      </table>
     </div>
-    <div class="section-title">Applied Filters</div>
-    ${filterTable}
-    <div class="section-title">Summary</div>
-    ${summaryTable}
-    <div class="section-title">Overview</div>
-    ${overviewTable}
-    <div class="section-title">Detailed Stock Sections</div>
-    ${detailSections || '<p style="color:#64748b;">No records available for the selected filters.</p>'}
+    <div class="section">
+      <table style="width:460px;">
+        ${filterRows}
+      </table>
+    </div>
+    <table class="report-table">
+      <tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr>
+      ${bodyRows}
+    </table>
   </body>
 </html>`;
 };
@@ -492,12 +445,9 @@ const buildPdf = (rows, summary, query) => {
     ink: '#0f172a',
     muted: '#475569',
     border: '#cbd5e1',
-    headerBg: '#e0f2fe',
-    cardBg: '#eff6ff',
+    headerBg: '#dbeafe',
     zebra: '#f8fafc',
-    regularBg: '#eff6ff',
-    mixBg: '#f5f3ff',
-    accent: '#1d4ed8',
+    summaryBg: '#eff6ff',
   };
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const pageBottom = doc.page.height - doc.page.margins.bottom;
@@ -535,7 +485,7 @@ const buildPdf = (rows, summary, query) => {
 
   const drawSectionTitle = (title) => {
     ensureSpace(28);
-    doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(13).text(title, { continued: false });
+    doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(12).text(title, { continued: false });
     doc.moveDown(0.25);
     const lineY = doc.y;
     doc.moveTo(doc.page.margins.left, lineY).lineTo(doc.page.margins.left + pageWidth, lineY).strokeColor(palette.border).lineWidth(1).stroke();
@@ -545,7 +495,7 @@ const buildPdf = (rows, summary, query) => {
   const drawMetricGrid = (items, columns = 3) => {
     const gap = 12;
     const cardWidth = (pageWidth - gap * (columns - 1)) / columns;
-    const cardHeight = 52;
+    const cardHeight = 40;
     let index = 0;
 
     while (index < items.length) {
@@ -554,45 +504,24 @@ const buildPdf = (rows, summary, query) => {
       for (let col = 0; col < columns && index < items.length; col += 1, index += 1) {
         const [label, value] = items[index];
         const x = doc.page.margins.left + col * (cardWidth + gap);
-        doc.roundedRect(x, startY, cardWidth, cardHeight, 8).fillAndStroke(palette.cardBg, '#bfdbfe');
-        doc.fillColor(palette.muted).font('Helvetica-Bold').fontSize(8).text(label.toUpperCase(), x + 10, startY + 9, { width: cardWidth - 20 });
-        doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(14).text(value, x + 10, startY + 24, { width: cardWidth - 20 });
+        doc.roundedRect(x, startY, cardWidth, cardHeight, 6).fillAndStroke(palette.summaryBg, '#bfdbfe');
+        doc.fillColor(palette.muted).font('Helvetica-Bold').fontSize(7).text(label.toUpperCase(), x + 8, startY + 7, { width: cardWidth - 16 });
+        doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(11).text(value, x + 8, startY + 20, { width: cardWidth - 16 });
       }
       doc.y = startY + cardHeight + 10;
     }
   };
 
-  const drawKeyValueTable = (items, sectionTone) => {
-    const labelWidth = 140;
-    const valueWidth = pageWidth - labelWidth;
-    const rowHeight = 22;
-    items.forEach(([label, value], index) => {
-      ensureSpace(rowHeight + 2);
-      const y = doc.y;
-      if (index % 2 === 0) {
-        doc.rect(doc.page.margins.left, y, pageWidth, rowHeight).fill(sectionTone);
-      }
-      doc.rect(doc.page.margins.left, y, labelWidth, rowHeight).strokeColor(palette.border).lineWidth(0.5).stroke();
-      doc.rect(doc.page.margins.left + labelWidth, y, valueWidth, rowHeight).strokeColor(palette.border).lineWidth(0.5).stroke();
-      doc.fillColor(palette.muted).font('Helvetica-Bold').fontSize(9).text(label, doc.page.margins.left + 8, y + 7, { width: labelWidth - 16 });
-      doc.fillColor(palette.ink).font('Helvetica').fontSize(9).text(String(value ?? ''), doc.page.margins.left + labelWidth + 8, y + 7, {
-        width: valueWidth - 16,
-      });
-      doc.y = y + rowHeight;
-    });
-    doc.moveDown(0.4);
-  };
-
-  const drawTable = ({ title, columns, rows, headerBg = palette.headerBg, zebraBg = palette.zebra, emptyMessage = 'No records available' }) => {
+  const drawTable = ({ title, columns, rows, headerBg = palette.headerBg, zebraBg = palette.zebra, emptyMessage = 'No records available', fontSize = 7 }) => {
     drawSectionTitle(title);
-    const headerHeight = 24;
-    const padding = 6;
+    const headerHeight = 20;
+    const padding = 5;
     const drawHeader = () => {
       const y = doc.y;
       let x = doc.page.margins.left;
       columns.forEach((column) => {
         doc.rect(x, y, column.width, headerHeight).fillAndStroke(headerBg, palette.border);
-        doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(8).text(column.label, x + padding, y + 8, {
+        doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(7).text(column.label, x + padding, y + 6, {
           width: column.width - padding * 2,
           align: column.align || 'left',
         });
@@ -607,7 +536,7 @@ const buildPdf = (rows, summary, query) => {
     if (!rows.length) {
       ensureSpace(28);
       doc.rect(doc.page.margins.left, doc.y, pageWidth, 24).strokeColor(palette.border).lineWidth(0.5).stroke();
-      doc.fillColor(palette.muted).font('Helvetica').fontSize(9).text(emptyMessage, doc.page.margins.left + 8, doc.y + 7);
+      doc.fillColor(palette.muted).font('Helvetica').fontSize(8).text(emptyMessage, doc.page.margins.left + 8, doc.y + 7);
       doc.y += 30;
       return;
     }
@@ -636,7 +565,7 @@ const buildPdf = (rows, summary, query) => {
       let x = doc.page.margins.left;
       columns.forEach((column, columnIndex) => {
         doc.rect(x, y, column.width, rowHeight).strokeColor(palette.border).lineWidth(0.5).stroke();
-        doc.fillColor(palette.ink).font('Helvetica').fontSize(8.5).text(String(row[columnIndex] ?? ''), x + padding, y + 6, {
+        doc.fillColor(palette.ink).font('Helvetica').fontSize(fontSize).text(String(row[columnIndex] ?? ''), x + padding, y + 5, {
           width: column.width - padding * 2,
           align: column.align || 'left',
         });
@@ -650,127 +579,65 @@ const buildPdf = (rows, summary, query) => {
 
   drawPageFrame();
 
-  drawSectionTitle('Report Filters');
-  drawKeyValueTable(
-    getFilterLines(query).map((line) => {
-      const [label, ...rest] = line.split(':');
-      return [label, rest.join(':').trim()];
-    }),
-    '#ffffff'
-  );
+  doc.fillColor(palette.muted).font('Helvetica').fontSize(8).text(getFilterLines(query).join('   |   '), {
+    width: pageWidth,
+    align: 'left',
+  });
+  doc.moveDown(0.6);
 
   drawSectionTitle('Summary');
-  drawMetricGrid(getSummaryMetricItems(summary), 3);
+  drawMetricGrid(getSummaryMetricItems(summary), 6);
 
-  if (!rows.length) {
-    drawSectionTitle('Detailed Stock Report');
-    doc.fillColor(palette.muted).font('Helvetica').fontSize(11).text('No records available for the selected filters.');
-  } else {
-    rows.forEach((row, index) => {
-      ensureSpace(36);
-      doc.roundedRect(doc.page.margins.left, doc.y, pageWidth, 46, 10).fillAndStroke(row.type === 'regular' ? palette.regularBg : palette.mixBg, palette.border);
-      doc.fillColor(palette.ink).font('Helvetica-Bold').fontSize(15).text(`${row.millName}  |  Lot ${row.lotNo}`, doc.page.margins.left + 12, doc.y + 10);
-      doc.fillColor(palette.muted).font('Helvetica').fontSize(10).text(
-        `${row.qualityName} | ${row.designName} | ${formatTypeLabel(row.type)} | ${formatDate(row.date)}`,
-        doc.page.margins.left + 12,
-        doc.y + 28
-      );
-      doc.y += 58;
+  drawTable({
+    title: 'Stock Overview',
+    columns: [
+      { label: 'Date', width: 46 },
+      { label: 'Mill', width: 124 },
+      { label: 'Quality', width: 92 },
+      { label: 'Design', width: 76 },
+      { label: 'Lot', width: 34, align: 'right' },
+      { label: 'Type', width: 40 },
+      { label: 'Recv', width: 46, align: 'right' },
+      { label: 'Than', width: 40, align: 'right' },
+      { label: 'Bale', width: 40, align: 'right' },
+      { label: 'Sold', width: 40, align: 'right' },
+      { label: 'Stock', width: 42, align: 'right' },
+    ],
+    rows: rows.map((row) => [
+      formatDate(row.date),
+      row.millName,
+      row.qualityName,
+      row.designName,
+      String(row.lotNo ?? ''),
+      formatTypeLabel(row.type),
+      formatMeter(row.totalMeterReceived),
+      formatMeter(row.meterOfTotalThan),
+      formatMeter(row.meterOfTotalBales),
+      formatMeter(row.meterSold),
+      formatMeter((row.stockRemaining || 0) + (row.unchecked || 0)),
+    ]),
+    emptyMessage: 'No records available for the selected filters.',
+  });
 
-      drawMetricGrid(
-        [
-          ['Received', `${formatMeter(row.totalMeterReceived)} m`],
-          ['Sold', `${formatMeter(row.meterSold)} m`],
-          ['In Stock', `${formatMeter((row.stockRemaining || 0) + (row.unchecked || 0))} m`],
-          ['Second', `${formatMeter(row.second)} m`],
-          ['Unchecked', `${formatMeter(row.unchecked)} m`],
-          ['Final Report', `${formatMeter(row.finalReport)} m`],
-        ],
-        3
-      );
-
-      drawSectionTitle('Stock Snapshot');
-      drawKeyValueTable(
-        [
-          ['Date', formatDate(row.date)],
-          ['Mill', row.millName],
-          ['Quality', row.qualityName],
-          ['Design', row.designName],
-          ['Lot No', row.lotNo],
-          ['Type', formatTypeLabel(row.type)],
-          ['Total Bale Meter', `${formatMeter(row.meterOfTotalBales)} m`],
-          ['Total Than Meter', `${formatMeter(row.meterOfTotalThan)} m`],
-        ],
-        row.type === 'regular' ? '#f8fbff' : '#faf5ff'
-      );
-
-      if (row.type === 'regular') {
-        drawTable({
-          title: 'Bale Number Details',
-          columns: [
-            { label: '#', width: 42 },
-            { label: 'Bale No', width: 188 },
-            { label: 'Meter (m)', width: 92, align: 'right' },
-            { label: 'Status', width: 110 },
-            { label: 'Bill No', width: 128 },
-          ],
-          rows: buildRegularBaleDetailRows(row).map((item) => [item.serial, item.baleNo, item.meter, item.status, item.billNo]),
-          headerBg: '#dbeafe',
-          zebraBg: '#f8fbff',
-          emptyMessage: 'No bale details available',
-        });
-      } else {
-        drawTable({
-          title: 'Than Details',
-          columns: [
-            { label: 'Than #', width: 56 },
-            { label: 'Than Meter (m)', width: 110, align: 'right' },
-            { label: 'Status', width: 100 },
-            { label: 'Bales', width: 100, align: 'right' },
-          ],
-          rows: (row.thanDetails || []).map((than) => [
-            than.sNo ?? '',
-            formatMeter(than.thanMeter),
-            than.checked ? 'Sold' : 'In Stock',
-            String((than.baleDetails || []).length),
-          ]),
-          headerBg: '#ede9fe',
-          zebraBg: '#faf5ff',
-          emptyMessage: 'No than details available',
-        });
-
-        drawTable({
-          title: 'Than-wise Bale Number Details',
-          columns: [
-            { label: 'Than #', width: 52 },
-            { label: 'Than Meter', width: 86, align: 'right' },
-            { label: 'Than Status', width: 86 },
-            { label: 'Bale #', width: 48 },
-            { label: 'Bale No', width: 180 },
-            { label: 'Bale Meter', width: 86, align: 'right' },
-            { label: 'Bill No', width: 98 },
-          ],
-          rows: buildMixBaleDetailRows(row).map((item) => [
-            item.thanSerial,
-            item.thanMeter,
-            item.thanStatus,
-            item.baleSerial,
-            item.baleNo,
-            item.baleMeter,
-            item.billNo,
-          ]),
-          headerBg: '#ede9fe',
-          zebraBg: '#faf5ff',
-          emptyMessage: 'No bale details available',
-        });
-      }
-
-      if (index < rows.length - 1) {
-        ensureSpace(18);
-        doc.moveDown(0.4);
-      }
-    });
-  }
+  drawTable({
+    title: 'Bale Details',
+    columns: [
+      { label: 'Lot', width: 40, align: 'right' },
+      { label: 'Type', width: 46 },
+      { label: 'Mill', width: 140 },
+      { label: 'Details', width: pageWidth - 40 - 46 - 140 },
+    ],
+    rows: rows.map((row) => [
+      String(row.lotNo ?? ''),
+      formatTypeLabel(row.type),
+      row.millName,
+      buildRowBaleDetails(row, { multiline: true, maxLength: 420 }) || 'No bale details',
+    ]),
+    headerBg: '#eef2ff',
+    zebraBg: '#f8fbff',
+    emptyMessage: 'No bale details available.',
+    fontSize: 6.6,
+  });
 
   drawPageFooter();
   doc.end();
