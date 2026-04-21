@@ -334,95 +334,210 @@ const buildCsv = (rows, summary) => {
   return lines.join('\n');
 };
 
-const buildExcel = (rows, summary, query) => {
-  const exportRows = flattenRowsForExport(rows);
-  const headers = Object.keys(exportRows[0] || {
-    Date: '',
-    Mill: '',
-    Quality: '',
-    Design: '',
-    'Lot No': '',
-    Type: '',
-    'Received (m)': '',
-    'Than Meter (m)': '',
-    'Bale Meter (m)': '',
-    'Second (m)': '',
-    'Unchecked (m)': '',
-    'Final Report (m)': '',
-    'Sold (m)': '',
-    'In Stock (m)': '',
-    'Bale Details': '',
-  });
-  const filterRows = getFilterLines(query)
-    .map((line) => `<tr><td colspan="2" style="padding:6px 10px;color:#475569;border:1px solid #e2e8f0;">${escapeHtml(line)}</td></tr>`)
-    .join('');
+const buildExcel = async (rows, summary, query) => {
+  const ExcelJS = require('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Manihar Enterprises Stock Management System';
+  workbook.created = new Date();
+  workbook.modified = new Date();
+  workbook.subject = 'Stock Report';
+  workbook.title = 'Manihar Enterprises Stock Report';
 
-  const summaryRows = [
-    ['Total Records', String(summary.count)],
+  const worksheet = workbook.addWorksheet('Stock Report', {
+    views: [{ state: 'frozen', ySplit: 10 }],
+    pageSetup: {
+      paperSize: 9,
+      orientation: 'landscape',
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
+      margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+    },
+    properties: { defaultRowHeight: 20 },
+  });
+
+  const reportHeaders = [
+    'Date',
+    'Mill',
+    'Quality',
+    'Design',
+    'Lot No',
+    'Type',
+    'Received (m)',
+    'Than Meter (m)',
+    'Bale Meter (m)',
+    'Bale Details',
+    'Second (m)',
+    'Unchecked (m)',
+    'Final Report (m)',
+    'Sold (m)',
+    'In Stock (m)',
+  ];
+
+  worksheet.mergeCells('A1:I1');
+  worksheet.getCell('A1').value = 'Stock Report';
+  worksheet.getCell('A1').font = { name: 'Segoe UI', size: 18, bold: true, color: { argb: 'FF0F172A' } };
+  worksheet.getCell('A1').alignment = { vertical: 'middle', horizontal: 'left' };
+
+  worksheet.mergeCells('A2:I2');
+  worksheet.getCell('A2').value = `Generated ${formatDateTime()}`;
+  worksheet.getCell('A2').font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+
+  const summaryItems = [
+    ['Total Records', summary.count],
     ['Total Received (m)', summary.totalReceived.toFixed(2)],
     ['Total Sold (m)', summary.totalSold.toFixed(2)],
     ['Total In Stock (m)', summary.totalInStock.toFixed(2)],
     ['Total Than Meter (m)', summary.totalThanMeter.toFixed(2)],
     ['Total Bale Meter (m)', summary.totalBaleMeter.toFixed(2)],
-  ]
-    .map(
-      ([label, value], index) =>
-        `<tr>
-          <td style="padding:8px 12px;border:1px solid #bfdbfe;background:${index % 2 === 0 ? '#eff6ff' : '#f8fbff'};font-weight:600;color:#1e3a8a;">${escapeHtml(label)}</td>
-          <td style="padding:8px 12px;border:1px solid #bfdbfe;background:${index % 2 === 0 ? '#eff6ff' : '#f8fbff'};font-weight:700;text-align:right;color:#0f172a;">${escapeHtml(value)}</td>
-        </tr>`
-    )
-    .join('');
+  ];
 
-  const bodyRows = exportRows
-    .map(
-      (row) =>
-        `<tr>${headers
-          .map((header) => {
-            const isBaleDetails = header === 'Bale Details';
-            const isNumeric = header !== 'Date' && header !== 'Mill' && header !== 'Quality' && header !== 'Design' && header !== 'Type' && header !== 'Bale Details';
-            return `<td style="padding:8px 10px;border:1px solid #dbeafe;vertical-align:top;${isBaleDetails ? 'min-width:340px;max-width:420px;white-space:pre-wrap;word-break:break-word;background:#f8fbff;font-size:12px;line-height:1.45;' : ''}${isNumeric ? 'text-align:right;font-variant-numeric:tabular-nums;' : ''}">${escapeHtml(
-              row[header]
-            )}</td>`;
-          })
-          .join('')}</tr>`
-    )
-    .join('');
+  summaryItems.forEach(([label, value], index) => {
+    const row = 4 + index;
+    worksheet.getCell(`A${row}`).value = label;
+    worksheet.getCell(`B${row}`).value = value;
+    worksheet.getCell(`A${row}`).font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF1E3A8A' } };
+    worksheet.getCell(`B${row}`).font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF0F172A' } };
+    worksheet.getCell(`B${row}`).alignment = { horizontal: 'right' };
+    ['A', 'B'].forEach((col) => {
+      worksheet.getCell(`${col}${row}`).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: index % 2 === 0 ? 'FFEFF6FF' : 'FFF8FBFF' },
+      };
+      worksheet.getCell(`${col}${row}`).border = {
+        top: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+        left: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+        bottom: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+        right: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+      };
+    });
+  });
 
-  return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <style>
-      body { font-family: Segoe UI, Arial, sans-serif; padding: 18px; color: #0f172a; }
-      h1 { margin: 0 0 8px; font-size: 22px; }
-      h2 { margin: 0 0 14px; font-size: 14px; color: #475569; }
-      table { border-collapse: collapse; width: 100%; table-layout: auto; }
-      th { background: #e0f2fe; color: #1e3a8a; border: 1px solid #bfdbfe; padding: 8px 10px; text-align: left; white-space: nowrap; }
-      .section { margin-bottom: 16px; }
-      .summary-table { width: 420px; }
-      .report-table td, .report-table th { font-size: 13px; }
-    </style>
-  </head>
-  <body>
-    <h1>Stock Report</h1>
-    <h2>Generated ${escapeHtml(formatDateTime())}</h2>
-    <div class="section">
-      <table class="summary-table">
-        ${summaryRows}
-      </table>
-    </div>
-    <div class="section">
-      <table style="width:460px;">
-        ${filterRows}
-      </table>
-    </div>
-    <table class="report-table">
-      <tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr>
-      ${bodyRows}
-    </table>
-  </body>
-</html>`;
+  const filterStartRow = 4;
+  getFilterLines(query).forEach((line, index) => {
+    const row = filterStartRow + index;
+    worksheet.mergeCells(`D${row}:G${row}`);
+    worksheet.getCell(`D${row}`).value = line;
+    worksheet.getCell(`D${row}`).font = { name: 'Segoe UI', size: 10, color: { argb: 'FF475569' } };
+    worksheet.getCell(`D${row}`).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF8FAFC' },
+    };
+    worksheet.getCell(`D${row}`).border = {
+      top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+      right: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+    };
+  });
+
+  const headerRowNumber = 11;
+  worksheet.addRow([]);
+  const headerRow = worksheet.getRow(headerRowNumber);
+  reportHeaders.forEach((header, index) => {
+    const cell = headerRow.getCell(index + 1);
+    cell.value = header;
+    cell.font = { name: 'Segoe UI', size: 10, bold: true, color: { argb: 'FF1E3A8A' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F2FE' } };
+    cell.alignment = { vertical: 'middle', horizontal: header === 'Bale Details' ? 'left' : 'center', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+      left: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+      bottom: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+      right: { style: 'thin', color: { argb: 'FFBFDBFE' } },
+    };
+  });
+  headerRow.height = 24;
+
+  rows.forEach((row, rowIndex) => {
+    const excelRow = worksheet.addRow([
+      formatDate(row.date),
+      row.millName,
+      row.qualityName,
+      row.designName,
+      row.lotNo,
+      formatTypeLabel(row.type),
+      Number(formatMeter(row.totalMeterReceived)),
+      Number(formatMeter(row.meterOfTotalThan)),
+      Number(formatMeter(row.meterOfTotalBales)),
+      buildRowBaleDetails(row, { multiline: true, maxLength: 500 }),
+      Number(formatMeter(row.second)),
+      Number(formatMeter(row.unchecked)),
+      Number(formatMeter(row.finalReport)),
+      Number(formatMeter(row.meterSold)),
+      Number(formatMeter((row.stockRemaining || 0) + (row.unchecked || 0))),
+    ]);
+
+    excelRow.height = Math.max(24, Math.min(72, 18 + Math.ceil(String(excelRow.getCell(10).value || '').length / 55) * 14));
+
+    excelRow.eachCell((cell, colNumber) => {
+      cell.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF0F172A' } };
+      cell.alignment = {
+        vertical: 'top',
+        horizontal: [5, 7, 8, 9, 11, 12, 13, 14, 15].includes(colNumber) ? 'right' : 'left',
+        wrapText: colNumber === 10,
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: rowIndex % 2 === 0 ? 'FFFFFFFF' : 'FFF8FBFF' },
+      };
+      if (colNumber === 10) {
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: rowIndex % 2 === 0 ? 'FFF8FBFF' : 'FFF1F5F9' },
+        };
+      }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FFD6E4FF' } },
+        left: { style: 'thin', color: { argb: 'FFD6E4FF' } },
+        bottom: { style: 'thin', color: { argb: 'FFD6E4FF' } },
+        right: { style: 'thin', color: { argb: 'FFD6E4FF' } },
+      };
+      if ([7, 8, 9, 11, 12, 13, 14, 15].includes(colNumber)) {
+        cell.numFmt = '0.00';
+      }
+    });
+  });
+
+  worksheet.columns = [
+    { width: 12 },
+    { width: 26 },
+    { width: 18 },
+    { width: 18 },
+    { width: 10 },
+    { width: 10 },
+    { width: 14 },
+    { width: 15 },
+    { width: 15 },
+    { width: 44 },
+    { width: 13 },
+    { width: 14 },
+    { width: 15 },
+    { width: 13 },
+    { width: 14 },
+  ];
+
+  worksheet.autoFilter = {
+    from: { row: headerRowNumber, column: 1 },
+    to: { row: headerRowNumber, column: reportHeaders.length },
+  };
+
+  worksheet.eachRow((row) => {
+    row.eachCell((cell) => {
+      if (!cell.alignment) {
+        cell.alignment = { vertical: 'middle' };
+      }
+    });
+  });
+
+  const lastRow = worksheet.lastRow?.number || headerRowNumber;
+  worksheet.pageSetup.printArea = `A1:O${lastRow}`;
+
+  return workbook.xlsx.writeBuffer();
 };
 
 const buildPdf = (rows, summary, query) => {
@@ -624,12 +739,16 @@ const buildPdf = (rows, summary, query) => {
     columns: [
       { label: 'Lot', width: 40, align: 'right' },
       { label: 'Type', width: 46 },
-      { label: 'Mill', width: 140 },
-      { label: 'Details', width: pageWidth - 40 - 46 - 140 },
+      { label: 'Quality', width: 90 },
+      { label: 'Design', width: 90 },
+      { label: 'Mill', width: 120 },
+      { label: 'Details', width: pageWidth - 40 - 46 - 90 - 90 - 120 },
     ],
     rows: rows.map((row) => [
       String(row.lotNo ?? ''),
       formatTypeLabel(row.type),
+      row.qualityName,
+      row.designName,
       row.millName,
       buildRowBaleDetails(row, { multiline: true, maxLength: 420 }) || 'No bale details',
     ]),
@@ -662,30 +781,31 @@ exports.getReport = async (req, res, next) => {
 exports.exportReport = async (req, res, next) => {
   try {
     const format = String(req.query.format || 'csv').toLowerCase();
+    const normalizedFormat = format === 'xls' ? 'xlsx' : format;
     const { rows, summary } = await buildReportPayload(req.query);
 
-    if (format === 'csv') {
+    if (normalizedFormat === 'csv') {
       const csv = buildCsv(rows, summary);
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${buildReportFileName(req.query, 'csv')}"`);
       return res.send(csv);
     }
 
-    if (format === 'xls') {
-      const workbook = buildExcel(rows, summary, req.query);
-      res.setHeader('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${buildReportFileName(req.query, 'xls')}"`);
-      return res.send(workbook);
+    if (normalizedFormat === 'xlsx') {
+      const workbook = await buildExcel(rows, summary, req.query);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${buildReportFileName(req.query, 'xlsx')}"`);
+      return res.send(Buffer.from(workbook));
     }
 
-    if (format === 'pdf') {
+    if (normalizedFormat === 'pdf') {
       const pdf = await buildPdf(rows, summary, req.query);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${buildReportFileName(req.query, 'pdf')}"`);
       return res.send(pdf);
     }
 
-    return res.status(400).json({ success: false, message: 'Unsupported export format. Use pdf, xls, or csv.' });
+    return res.status(400).json({ success: false, message: 'Unsupported export format. Use pdf, xlsx, or csv.' });
   } catch (error) {
     next(error);
   }

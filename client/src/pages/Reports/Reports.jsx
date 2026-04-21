@@ -32,6 +32,17 @@ function FilterChip({ label, value }) {
   );
 }
 
+function QuickTotalCard({ label, value, className = '', valueClassName = '' }) {
+  return (
+    <div className={`rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3.5 shadow-inner shadow-black/5 ${className}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-100/80">{label}</p>
+      <p className={`mt-2 break-words text-[1.7rem] font-bold leading-tight text-white [font-variant-numeric:tabular-nums] sm:text-[1.9rem] ${valueClassName}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function ReportEntryHeader({ stock, toneClass }) {
   return (
     <div className={`flex flex-col gap-4 border-b px-4 py-4 sm:px-5 ${toneClass}`}>
@@ -247,7 +258,8 @@ export default function Reports() {
       const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: mimeType });
       const disposition = response.headers?.['content-disposition'] || '';
       const match = disposition.match(/filename="?([^"]+)"?/i);
-      const fileName = match?.[1] || `stock-report.${format}`;
+      const fallbackExtension = format === 'xlsx' ? 'xlsx' : format;
+      const fileName = match?.[1] || `stock-report.${fallbackExtension}`;
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -277,8 +289,8 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       <div className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 p-5 text-white shadow-xl sm:p-6">
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="max-w-4xl">
+        <div className="space-y-5">
+          <div className="max-w-5xl">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Stock Reports</h2>
             <p className="mt-2 text-sm text-blue-100/90 sm:text-base">
               Review received meter, sold meter, and total stock with active filters.
@@ -291,36 +303,38 @@ export default function Reports() {
           </div>
 
           <div className="rounded-3xl border border-white/15 bg-slate-950/20 p-4 shadow-lg backdrop-blur-sm sm:p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200">Quick Totals</p>
-            <div className="mt-3 space-y-3">
-              <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-blue-100">Records</p>
-                <p className="mt-1 text-3xl font-bold leading-none">{summary?.count ?? reportData.length}</p>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-200">Quick Totals</p>
+                <p className="mt-1 text-sm text-blue-100/75">A compact overview of the filtered stock report.</p>
               </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
-                  <p className="text-xs text-blue-100">Received</p>
-                  <p className="mt-1 text-xl font-bold leading-tight">{Number(summary?.totalReceived || 0).toFixed(2)} m</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
-                  <p className="text-xs text-blue-100">Sold</p>
-                  <p className="mt-1 text-xl font-bold leading-tight">{Number(summary?.totalSold || 0).toFixed(2)} m</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
-                  <p className="text-xs text-blue-100">Total Stock</p>
-                  <p className="mt-1 text-xl font-bold leading-tight">{Number(summary?.totalInStock || 0).toFixed(2)} m</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
-                  <p className="text-xs text-blue-100">Total Than Meter</p>
-                  <p className="mt-1 text-xl font-bold leading-tight">{Number(summary?.totalThanMeter || 0).toFixed(2)} m</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
-                  <p className="text-xs text-blue-100">Total Bale Meter</p>
-                  <p className="mt-1 text-xl font-bold leading-tight">{Number(summary?.totalBaleMeter || 0).toFixed(2)} m</p>
-                </div>
-              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+              <QuickTotalCard
+                label="Records"
+                value={summary?.count ?? reportData.length}
+                valueClassName="text-4xl sm:text-[2.4rem]"
+              />
+              <QuickTotalCard
+                label="Received"
+                value={`${Number(summary?.totalReceived || 0).toFixed(2)} m`}
+              />
+              <QuickTotalCard
+                label="Sold"
+                value={`${Number(summary?.totalSold || 0).toFixed(2)} m`}
+              />
+              <QuickTotalCard
+                label="Total Stock"
+                value={`${Number(summary?.totalInStock || 0).toFixed(2)} m`}
+              />
+              <QuickTotalCard
+                label="Total Than Meter"
+                value={`${Number(summary?.totalThanMeter || 0).toFixed(2)} m`}
+              />
+              <QuickTotalCard
+                label="Total Bale Meter"
+                value={`${Number(summary?.totalBaleMeter || 0).toFixed(2)} m`}
+              />
             </div>
           </div>
         </div>
@@ -415,8 +429,8 @@ export default function Reports() {
             <button className="btn-secondary w-full" onClick={() => handleDownload('pdf')} disabled={!reportData.length || downloading === 'pdf'}>
               <MdPictureAsPdf className="text-lg" /> {downloading === 'pdf' ? 'Preparing...' : 'PDF'}
             </button>
-            <button className="btn-secondary w-full" onClick={() => handleDownload('xls')} disabled={!reportData.length || downloading === 'xls'}>
-              <MdGridOn className="text-lg" /> {downloading === 'xls' ? 'Preparing...' : 'XLS'}
+            <button className="btn-secondary w-full" onClick={() => handleDownload('xlsx')} disabled={!reportData.length || downloading === 'xlsx'}>
+              <MdGridOn className="text-lg" /> {downloading === 'xlsx' ? 'Preparing...' : 'XLSX'}
             </button>
             <button className="btn-secondary w-full" onClick={() => handleDownload('csv')} disabled={!reportData.length || downloading === 'csv'}>
               <MdTableChart className="text-lg" /> {downloading === 'csv' ? 'Preparing...' : 'CSV'}
